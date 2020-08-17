@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "thanos-receive.fullname" . }}
+  labels: {{- include "thanos-receive.labels" . | nindent 4 }}
+    app.kubernetes.io/component: thanos-receive
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "thanos-receive.selectorLabels" . | nindent 6 }}
+  serviceName: {{ include "thanos-receive.fullname" . }}
+  template:
+    metadata:
+      labels:
+        {{- include "thanos-receive.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "thanos-receive.serviceAccountName" . }}
+      containers:
+      - name: thanos-receive
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        args:
+        - receive
+        - --tsdb.path=/data/remote-write-receive-data
+        - --debug.name=receive       
+        - --log.level=debug       
+        - --grpc-address=0.0.0.0:19891
+        - --http-address=0.0.0.0:18091
+        - --remote-write.address=0.0.0.0:19291
+        - --objstore.config-file=/etc/prometheus/{{ .Values.objectStoreSecret.key }}
+        ports:
+        - name: http
+          containerPort: 19291
+        - name: grpc
+          containerPort: 19891
+        volumeMounts:
+        - name: s3-store-credentials
+          mountPath: /etc/prometheus/
+          readOnly: true
+        - name: data
+          mountPath: /data/remote-write-receive-data
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (include "thanos-receive.fullname" .) }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: s3-store-credentials
+          secret:
+            secretName: {{ .Values.objectStoreSecret.name }}
