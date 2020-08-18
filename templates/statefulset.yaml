@@ -16,6 +16,9 @@ spec:
         {{- include "thanos-receive.selectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "thanos-receive.serviceAccountName" . }}
+      {{- if .Values.nodeSelector }}
+      nodeSelector: {{- include "grafana.tplValue" (dict "value" .Values.nodeSelector "context" $) | nindent 8 }}
+      {{- end }}
       containers:
       - name: thanos-receive
         image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
@@ -34,7 +37,7 @@ spec:
         - name: grpc
           containerPort: 19891
         volumeMounts:
-        - name: s3-store-credentials
+        - name: object-store-credentials
           mountPath: /etc/prometheus/
           readOnly: true
         - name: data
@@ -47,6 +50,6 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
-        - name: s3-store-credentials
+        - name: object-store-credentials
           secret:
             secretName: {{ .Values.objectStoreSecret.name }}
